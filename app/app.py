@@ -1,8 +1,6 @@
 import streamlit as st
 import requests
-import re
 import os
-import html
 from dotenv import load_dotenv
 
 # -----------------------------
@@ -11,9 +9,9 @@ from dotenv import load_dotenv
 load_dotenv()
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
-HEADERS = {
-    "Authorization": f"token {GITHUB_TOKEN}" if GITHUB_TOKEN else None
-}
+HEADERS = {}
+if GITHUB_TOKEN:
+    HEADERS["Authorization"] = f"token {GITHUB_TOKEN}"
 
 # -----------------------------
 # 🧠 DETECTION FUNCTIONS
@@ -32,9 +30,7 @@ def detect_dangerous_exec(line):
 
 def detect_hardcoded_credentials(line):
     keywords = ["password", "passwd", "secret", "token", "api_key", "apikey"]
-    line_lower = line.lower()
-    return any(k in line_lower for k in keywords) and "=" in line
-
+    return any(k in line.lower() for k in keywords) and "=" in line
 
 # -----------------------------
 # 🔍 ANALYZE CODE
@@ -62,13 +58,12 @@ def analyze_code(code):
 
     return issues
 
-
 # -----------------------------
-# 🎨 DISPLAY ISSUES (FIXED HTML)
+# 🎨 DISPLAY ISSUES (FIXED)
 # -----------------------------
-def show_issues(issues, code=None):
+def show_issues(issues, code):
 
-    lines = code.split("\n") if code else []
+    lines = code.split("\n")
 
     if not issues:
         st.success("✅ No issues found")
@@ -94,50 +89,52 @@ def show_issues(issues, code=None):
             bg = "#0a1a2a"
             badge = "🔵 LOW"
 
-        clean_msg = html.escape(msg)
-        code_line = html.escape(lines[line_no - 1]) if code and line_no <= len(lines) else ""
+        code_line = lines[line_no - 1] if line_no <= len(lines) else ""
 
-        # 🚨 NO INDENTATION HERE (THIS FIXES YOUR BUG)
-        html_block = f"""<div style="background-color:{bg}; border-radius:10px; padding:12px; margin-bottom:12px; border-left:4px solid {color};">
+        # ✅ UI CARD (HTML SAFE)
+        st.markdown(
+            f"""
+            <div style="background-color:{bg}; border-radius:10px; padding:12px; margin-bottom:12px; border-left:4px solid {color};">
+                <div style="font-weight:600; color:{color}; margin-bottom:6px;">
+                    {badge} — Line {line_no}
+                </div>
+                <div style="color:#ddd; font-size:14px; margin-bottom:8px;">
+                    {msg}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-<div style="font-weight:600; color:{color}; margin-bottom:6px;">
-{badge} — Line {line_no}
-</div>
-
-<div style="color:#ddd; font-size:14px; margin-bottom:8px;">
-{clean_msg}
-</div>
-
-<div style="background-color:#111; padding:8px; border-radius:6px; font-family:monospace; font-size:13px; color:#e6e6e6; overflow-x:auto;">
-{code_line}
-</div>
-
-</div>"""
-
-        st.markdown(html_block, unsafe_allow_html=True)
-
+        # ✅ CODE BLOCK (NO HTML BUG)
+        st.code(code_line, language="python")
 
 # -----------------------------
-# 🌐 FETCH GITHUB FILES
+# 🌐 FETCH GITHUB FILES (RECURSIVE)
 # -----------------------------
 def get_python_files(repo_url):
     repo_name = repo_url.replace("https://github.com/", "")
     api_url = f"https://api.github.com/repos/{repo_name}/contents"
 
-    response = requests.get(api_url, headers=HEADERS)
-
-    if response.status_code != 200:
-        return []
-
-    files = response.json()
     py_files = []
 
-    for file in files:
-        if file["type"] == "file" and file["name"].endswith(".py"):
-            py_files.append(file["download_url"])
+    def fetch_files(url):
+        response = requests.get(url, headers=HEADERS)
 
+        if response.status_code != 200:
+            return
+
+        items = response.json()
+
+        for item in items:
+            if item["type"] == "file" and item["name"].endswith(".py"):
+                py_files.append(item["download_url"])
+
+            elif item["type"] == "dir":
+                fetch_files(item["url"])  # 🔥 recursion
+
+    fetch_files(api_url)
     return py_files
-
 
 # -----------------------------
 # 🎯 UI
@@ -147,7 +144,6 @@ st.set_page_config(page_title="AI Code Review", layout="wide")
 st.title("AI Code Review Assistant")
 
 mode = st.radio("Choose Input Mode", ["Paste Code", "GitHub Repo"])
-
 
 # -----------------------------
 # 📌 PASTE MODE
@@ -162,7 +158,6 @@ if mode == "Paste Code":
     if st.button("Analyze Code"):
         issues = analyze_code(code)
         show_issues(issues, code)
-
 
 # -----------------------------
 # 📌 GITHUB MODE
