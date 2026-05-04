@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI-Assisted Code Review & Bug Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 42px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #aaa;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body onload="toggleMode()">
+
+<div class="container">
+
+    <!-- 🔥 CENTERED HEADER -->
+    <div class="header">
+        <h1>AI-Assisted Code Review & Bug Analyzer</h1>
+        <p>Analyze code for vulnerabilities and potential bugs using intelligent techniques</p>
+    </div>
+
+    <form method="POST">
+
+        <div class="radio-group" style="text-align:center;">
+            <label>
+                <input type="radio" name="mode" value="code"
+                {% if selected_mode == "code" %}checked{% endif %}
+                onclick="toggleMode()"> Paste Code
+            </label>
+
+            <label style="margin-left: 20px;">
+                <input type="radio" name="mode" value="repo"
+                {% if selected_mode == "repo" %}checked{% endif %}
+                onclick="toggleMode()"> GitHub Repo
+            </label>
+        </div>
+
+        <div id="codeBox">
+            <textarea name="code_input">{{ code_input }}</textarea>
+        </div>
+
+        <div id="repoBox">
+            <input type="text" name="repo_url" value="{{ repo_url }}" placeholder="Enter GitHub Repo URL">
+        </div>
+
+        <div style="text-align:center;">
+            <button type="submit">Analyze Code</button>
+        </div>
+
+    </form>
+
+    {% if file_count is not none %}
+        <div class="summary">
+            Found {{ file_count }} Python files
+        </div>
+    {% endif %}
+
+    <div id="results">
+        {% for result in results %}
+            <div class="card">
+                <div class="file-header">
+                    {{ result.file }} — {{ result.issue_count }} issues
+                </div>
+
+                {% if result.issue_count == 0 %}
+                    <div class="no-issues">No issues found</div>
+                {% endif %}
+
+                {% for sev, line, msg, code in result.issues %}
+                    <div class="issue {{ sev|lower }}">
+                        <b>{{ sev }} — Line {{ line }}</b>
+                        <div>{{ msg }}</div>
+                        <pre>{{ code }}</pre>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<script>
+function toggleMode() {
+    let mode = document.querySelector('input[name="mode"]:checked').value;
+
+    document.getElementById("codeBox").style.display =
+        (mode === "code") ? "block" : "none";
+
+    document.getElementById("repoBox").style.display =
+        (mode === "repo") ? "block" : "none";
+}
+</script>
+
+</body>
+</html>
